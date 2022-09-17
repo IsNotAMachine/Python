@@ -1,0 +1,47 @@
+"""
+Project 2: Recreating Hangman!
+Get x amount of guesses and x amount of lives
+"""
+from typing import Any
+
+global lives
+lives = 10
+word = ["D", "o", "r", "k", "y"]
+print("This is hangman! Guess the word!")
+print("The word is {} letters".format(len(word)))
+print("You get 10 guesses")
+i = 0
+correct = []
+for y in range(len(word)):
+    correct.append(y+1)
+
+def guesses():
+    global guess
+    guess = input("Guess: ").upper()
+
+while i in range(lives):
+    guesses()
+    if guess in correct:
+        print("You already guessed that!")
+        continue
+    for y in range(len(word)):
+        word[y] = word[y].upper()
+        if guess.upper() == word[y]:
+            print("Correct!")
+            correct[y] = guess
+        if guess.upper() != word[y].upper():
+            continue
+    if guess not in correct:
+        print("Not correct!")
+        print("Minus one life!")
+        lives -= 1
+        print("Lives remaining {}".format(lives))
+    if lives == 0:
+        print("Sorry better luck next time")
+        break
+    if correct == word:
+        print("You won! YAY!")
+        print(correct)
+        print(word)
+        break
+    print(correct)
