@@ -1,0 +1,51 @@
+import tensorflow as tf
+from tensorflow import keras
+import numpy as np
+import matplotlib.pyplot as plt
+
+#Don't want to pass all the data to train in only 70-80% to make sure it's training not memorizing
+
+#Loading in dataset
+data = keras.datasets.fashion_mnist
+
+#Splitting data into training and testing data splitting 60000 / 10000 test
+(train_images, train_labels), (test_images, test_labels) = data.load_data()
+
+#making the images smaller so the model is more accurate
+train_images = train_images/255
+test_images = test_images/255
+
+#Relating numbers to what the image is 0 is t-shirt 9 is ankle boot
+class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+#Defining a sequence of layers
+model = keras.Sequential([
+    #defining different layers of neural network
+    keras.layers.Flatten(input_shape=(28, 28)), #flattened input layer since image is 28x28
+    keras.layers.Dense(128, activation="relu"), #dense layer is fully connected each neuron is connected to all neurons in next network
+    keras.layers.Dense(10, activation='softmax') #softmax picks values for each neuron so all values add up to one
+                          ])
+
+# parameters for the model
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+#epoch how many times model sees the same image
+model.fit(train_images, train_labels, epochs=5)
+
+#Using model
+#Predict expects you to use a bunch of data need an array
+prediction = model.predict(test_images)
+print(prediction[0]) #shows 10 values for 10 neural networks
+
+#For loop looping through test images and showing prediction
+for i in range(15):
+    plt.grid(False)
+    plt.imshow(test_images[i], cmap=plt.cm.binary)
+    plt.xlabel("Actual: " + class_names[test_labels[i]])
+    plt.title("Prediction: " + class_names[np.argmax(prediction[i])])
+    plt.show()
+
+
+#Taking highest number of the prediction and that's what the model predicts
+print(class_names[np.argmax(prediction[0])])
