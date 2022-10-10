@@ -1,1 +1,2 @@
 This is a stock predictor program that utilizes the TD Ameritrade API so you can look at different timeframes as well. 
+You will need to create a new .py file with your client ID key from TD Ameritrade API 
