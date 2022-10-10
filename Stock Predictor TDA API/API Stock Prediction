@@ -1,0 +1,175 @@
+import requests
+from config import client_id
+import math
+import pandas_datareader as web
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import Dense, LSTM
+import matplotlib.pyplot as plt
+import datetime
+import time
+
+# Stock
+stock = 'SPY'
+# Setting length of values and number of values you're looking at later in code
+num = 60
+
+
+# Daily prices endpoints
+endpoint = r"https://api.tdameritrade.com/v1/marketdata/{}/pricehistory".format(stock)
+
+# Getting info from TD Ameritrade Api for price history
+payload = {'apikey':client_id,
+           'periodType':'day',
+           'frequencyType':'minute',
+           'frequency': '1',
+           'period':2,
+           'enddate':'1665205200',
+            'startdate':'1664773200',
+           'needExtendedHoursData':'true'
+           }
+
+content = requests.get(url = endpoint, params = payload)
+
+# Convert to a dictionary
+data = content.json()
+print(type(data))
+# Get subset of dictionary with the values of the candles
+new_data = data['candles']
+
+# Converting epoc time to date time
+for i in range(len(new_data)):
+    d1 = new_data[i]
+    d2 = d1['datetime']
+    d2 = d2/100
+    d2 = datetime.datetime.fromtimestamp(d2)
+    d2= d2.strftime('%H:%M:%S')
+    d1.update({'datetime':d2})
+
+#convert data to pandas
+points = ['open', 'high', 'low', 'close', 'volume', 'datetime']
+df = pd.DataFrame(new_data, columns = points)
+
+
+
+# Create new dataframe with only the close column
+close_data = df.filter(['close'])
+# Convert the dataframe to a numpy array
+dataset = close_data.values
+# Compute the number of rows to train the model on
+training_data_len = math.ceil(len(dataset) * .8)
+print(training_data_len)
+
+
+# Scale the data
+scaler = MinMaxScaler(feature_range=(0,1))
+#transform data to be between 1 and 0
+scaled_data = scaler.fit_transform(dataset)
+
+# Create the training dataset
+# Create scaled training dataset
+train_data = scaled_data[0:training_data_len, :]
+# Split the data into x train and y train data sets
+x_train = []
+y_train = []
+
+for i in range(num, len(train_data)):
+    #contains the past values set at num
+    x_train.append(train_data[i-num:i, 0])
+    #y_train contains 61st value for model to pridict
+    y_train.append(train_data[i, 0])
+    """
+    Used to view the training sets and prediction sets
+    if i <= 61:
+        print(x_train)
+        print(y_train)
+        print()
+    """
+# Convert x_train and y_train to numpy arrays
+x_train, y_train = np.array(x_train), np.array(y_train)
+# Reshape the data for LSTM because we need it 3D for the model to read it
+x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+print(x_train.shape)
+
+# Build the LSTM model
+model = Sequential()
+model.add(LSTM(50, return_sequences=True, input_shape=(x_train.shape[1], 1)))
+model.add(LSTM(50, return_sequences=False))
+model.add(Dense(25))
+model.add(Dense(1))
+
+# Compile the model
+# Optimizer used to improve the loss function
+# Loss function is used to measure how well the model did on training data
+model.compile(optimizer='adam', loss='mean_squared_error')
+
+# Training the model
+# Epocs is number of times data passes back and forth through NN
+model.fit(x_train, y_train, batch_size=1, epochs=1)
+
+# Create the testing data set
+# Create new array containing scaled values starting from training data length to end
+test_data = scaled_data[training_data_len-num: , :]
+# Create data sets x_test and y_test
+x_test = []
+y_test = dataset[training_data_len: , :]
+
+# Create testing data
+for i in range(num, len(test_data)):
+    x_test.append(test_data[i-num:i, 0])
+
+# Convert the data to a numpy array
+x_test = np.array(x_test)
+
+# Reshape the data to 3D for LSTM
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+
+# Get models predicted price values
+predictions = model.predict(x_test)
+# Unscaling the values to contain the same values as y_test dataset contains
+predictions = scaler.inverse_transform(predictions)
+
+# Evaluate the model by getting the root mean squared error (RMSE)
+rmse = np.sqrt( np.mean(predictions - y_test)**2)
+# Closer to zero better the prediction
+print(rmse)
+
+# Plot the data
+train = df[:training_data_len]
+valid = df[training_data_len:]
+valid['Predictions'] = predictions
+
+# Get the quote
+new_df = pd.DataFrame(new_data, columns=points)
+new_df = new_df.filter(['close'])
+
+# Get last num points of data and convert dataframe to an array
+last_num_points = new_df[-num:].values
+# Scale the data to be values between 0 and 1
+last_num_points_scaled = scaler.transform(last_num_points)
+# Create empty list
+X_test = []
+# Append past num points
+X_test.append(last_num_points_scaled)
+# Convert X_test dataset to numpy array
+X_test = np.array(X_test)
+# Reshape to 3D data
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+print(X_test.shape)
+#Get predicted scaled price
+pred_price = model.predict(X_test)
+# Undo scaling
+pred_price = scaler.inverse_transform(pred_price)
+print(pred_price)
+
+# Visualize the model
+plt.figure(figsize=(16,8))
+plt.title('Close Price History')
+plt.xlabel('Date (Epocs)', fontsize = 18)
+plt.ylabel('Close Price', fontsize = 18)
+plt.plot(train['close'])
+plt.plot(valid[['close', 'Predictions']])
+plt.legend(['Train', 'Val', 'Predictions'], loc='lower right')
+plt.show()
